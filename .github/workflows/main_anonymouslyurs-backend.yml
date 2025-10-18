@@ -18,19 +18,14 @@ jobs:
       - name: Set up Node.js version
         uses: actions/setup-node@v4
         with:
-          node-version: '18.x'  # Changed from 22.x to 18.x for better compatibility
+          node-version: '22.x'
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci  # Uses package-lock.json for reproducible builds
+        run: npm install
 
-      - name: Create production package
-        run: |
-          # Remove devDependencies if you don't need them in production
-          npm prune --production
-          # Create a clean deployment package
-          zip -r release.zip . -x "*.git*" "node_modules/.bin/*" "*.github/*"
+      - name: Create deployment package
+        run: zip -r release.zip . -x "*.git*" "node_modules/.bin/*" "*.github/*"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
