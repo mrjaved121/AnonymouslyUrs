@@ -9,38 +9,35 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: backend   # <<< build only the backend app
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Use Node.js 22.x
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
 
-      - name: Install (prod only)
-        run: npm ci --omit=dev
-
-      # Ensure your package.json has "start": "node index.js"
-      # and your server listens on process.env.PORT
-      - name: Verify start script
-        run: node -e "const p=require('./package.json'); if(!p.scripts?.start) process.exit(1)"
-
-      # Create a ready-to-run zip (includes node_modules)
-      - name: Create deployment package
+      # If your backend is plain JS, you can install prod-only.
+      # If you transpile (TypeScript) or need dev tools to build, do `npm ci` then prune.
+      - name: Install backend dependencies
+        working-directory: backend
         run: |
-          cd ..
-          zip -r backend-release.zip backend \
-            -x "backend/.git/*" \
-               "backend/.github/*" \
-               "backend/tests/*" \
-               "backend/**/.env*"    # don't ship local env files
+          npm ci --omit=dev
+
+      # If you DO have a build step (e.g., TS -> JS), uncomment:
+      # - name: Build backend
+      #   working-directory: backend
+      #   run: npm run build
+
+      - name: Create deployment zip (backend only)
+        run: |
+          cd backend
+          zip -r ../backend-release.zip . \
+            -x "node_modules/.cache/*" \
+            -x "**/.git/**"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -53,7 +50,6 @@ jobs:
     needs: build
     environment:
       name: Production
-      url: ${{ steps.deploy.outputs.webapp-url }}
 
     steps:
       - name: Download artifact
@@ -61,11 +57,9 @@ jobs:
         with:
           name: backend-release
 
-      - name: Deploy to Azure Web App
-        id: deploy
+      - name: Deploy to Azure Web App (publish profile)
         uses: azure/webapps-deploy@v3
         with:
           app-name: anonymouslyurs-backend
-          # slot-name: 'Production'   # optional; default is production
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_BACKEND }}
           package: backend-release.zip
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_BACKEND }}
